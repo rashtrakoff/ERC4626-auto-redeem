@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { publicClient, walletClient, account } from './client';
 import { VAULT, OWNER } from './constant';
 import { abi } from './abi';
+import { maxUint256 } from 'viem';
 
 type Address = `0x${string}`;
 
@@ -43,7 +44,7 @@ async function attemptRedeem() {
         address: VAULT as Address,
         abi: abi,
         functionName: 'redeem',
-        args: [sharesToRedeem, botAddress, OWNER],
+        args: [sharesToRedeem, OWNER, botAddress],
       });
 
       console.log(`✅ Transaction sent! Hash: ${hash}`);
