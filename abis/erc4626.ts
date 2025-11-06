@@ -1,5 +1,5 @@
 import { Abi } from "viem"
-export const abi: Abi = [
+export const erc4626: Abi = [
   {
     "inputs": [
       {

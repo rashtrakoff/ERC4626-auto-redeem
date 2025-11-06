@@ -1,3 +1,5 @@
-export const VAULT = '0xE1A62FDcC6666847d5EA752634E45e134B2F824B'
+import { Address } from "viem";
 
-export const OWNER = process.env.OWNER || ''
+export const VAULT: Address = '0xa9C251F8304b1B3Fc2b9e8fcae78D94Eff82Ac66';
+export const SAFE_ADDRESS: Address = process.env.SAFE_ADDRESS as Address;
+export const ALLOWANCE_MODULE_ADDRESS: Address = "0xCFbFaC74C26F8647cBDb8c5caf80BB5b32E43134";
