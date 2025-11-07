@@ -78,12 +78,14 @@ async function attemptRedeem() {
             }
 
             // Call redeem function
-            const redemptionHash = await walletClient.writeContract({
+            const {request} = await publicClient.simulateContract({
                 address: VAULT,
                 abi: erc4626,
                 functionName: "redeem",
                 args: [sharesToRedeem, SAFE_ADDRESS, botAddress],
+                account: account.address,
             });
+            const redemptionHash = await walletClient.writeContract(request);
 
             console.log(`✅ Transaction sent! Hash: ${redemptionHash}`);
             console.log(`Waiting for confirmation...`);
