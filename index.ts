@@ -2,40 +2,32 @@ import "dotenv/config";
 import { publicClient, walletClient, account } from "./client";
 import { VAULT, SAFE_ADDRESS, ALLOWANCE_MODULE_ADDRESS } from "./constant";
 import { erc4626 } from "./abis/erc4626";
-import { allowanceModule } from "./abis/allowanceModule";
-import { zeroAddress } from "viem";
 
 const INTERVAL_MS = 1000; // Try every 1 second
-const MIN_REDEEMABLE_THRESHOLD = 1n; // Minimum shares to trigger redeem
 
 async function attemptRedeem() {
     try {
         const botAddress = account.address;
         console.log(
-            `\n[${new Date().toISOString()}] Checking vault for address: ${botAddress}`
+            `\n[${new Date().toISOString()}] Checking vault for address: ${SAFE_ADDRESS}`
         );
 
-        // Read balance and maxRedeem in parallel
-        const [balance, botSharesBalance, maxRedeemable] = await Promise.all([
-            publicClient.readContract({
-                address: VAULT,
-                abi: erc4626,
-                functionName: "balanceOf",
-                args: [SAFE_ADDRESS],
-            }) as Promise<bigint>,
-            publicClient.readContract({
-                address: VAULT,
-                abi: erc4626,
-                functionName: "balanceOf",
-                args: [botAddress],
-            }) as Promise<bigint>,
-            publicClient.readContract({
-                address: VAULT,
-                abi: erc4626,
-                functionName: "maxRedeem",
-                args: [SAFE_ADDRESS],
-            }) as Promise<bigint>,
-        ]);
+        const [{result: balance}, {result: maxRedeemable}] = await publicClient.multicall({
+            contracts: [
+                {
+                    address: VAULT,
+                    abi: erc4626,
+                    functionName: "balanceOf",
+                    args: [botAddress],
+                },
+                {
+                    address: VAULT,
+                    abi: erc4626,
+                    functionName: "maxRedeem",
+                    args: [botAddress],
+                },
+            ],
+        }) as [{ result: bigint }, { result: bigint }];
 
         console.log(`Balance: ${balance.toString()}`);
         console.log(`Max Redeemable: ${maxRedeemable.toString()}`);
@@ -44,48 +36,27 @@ async function attemptRedeem() {
         const sharesToRedeem =
             balance < maxRedeemable ? balance : maxRedeemable;
 
-        if (sharesToRedeem >= MIN_REDEEMABLE_THRESHOLD) {
+        if (sharesToRedeem) {
             console.log(
                 `\n🎯 Found ${sharesToRedeem.toString()} shares to redeem!`
             );
             console.log(`Attempting to redeem to recipient: ${SAFE_ADDRESS}`);
 
-            // Transfer the shares from the safe to the bot address.
-            if (botSharesBalance < sharesToRedeem) {
-                const allowanceTxHash = await walletClient.writeContract({
-                    address: ALLOWANCE_MODULE_ADDRESS,
-                    abi: allowanceModule,
-                    functionName: "executeAllowanceTransfer",
-                    args: [
-                        SAFE_ADDRESS,
-                        VAULT,
-                        account.address,
-                        sharesToRedeem,
-                        zeroAddress,
-                        0n,
-                        account.address, // delegate (bot address)
-                        "0x", // empty signature since we're the delegate
-                    ],
-                });
-
-                console.info(
-                    `Allowance transfer sent: ${allowanceTxHash}. Waiting for confirmation...`
-                );
-                await publicClient.waitForTransactionReceipt({
-                    hash: allowanceTxHash,
-                });
-                console.info(`Allowance transfer confirmed.`);
-            }
-
+            // const {request} = await publicClient.simulateContract({
+                //     address: VAULT,
+                //     abi: erc4626,
+                //     functionName: "redeem",
+                //     args: [sharesToRedeem, SAFE_ADDRESS, botAddress],
+                //     account: account.address,
+            // });
             // Call redeem function
-            const {request} = await publicClient.simulateContract({
+            const redemptionHash = await walletClient.writeContract({
                 address: VAULT,
                 abi: erc4626,
                 functionName: "redeem",
                 args: [sharesToRedeem, SAFE_ADDRESS, botAddress],
                 account: account.address,
             });
-            const redemptionHash = await walletClient.writeContract(request);
 
             console.log(`✅ Transaction sent! Hash: ${redemptionHash}`);
             console.log(`Waiting for confirmation...`);
