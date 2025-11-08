@@ -4,12 +4,13 @@ import { VAULT, SAFE_ADDRESS, ALLOWANCE_MODULE_ADDRESS } from "./constant";
 import { erc4626 } from "./abis/erc4626";
 
 const INTERVAL_MS = 1000; // Try every 1 second
+const MIN_SHARES_TO_REDEEM = 1_000n; // Minimum shares to trigger redeem
 
 async function attemptRedeem() {
     try {
         const botAddress = account.address;
         console.log(
-            `\n[${new Date().toISOString()}] Checking vault for address: ${SAFE_ADDRESS}`
+            `\n[${new Date().toISOString()}] Checking vault for address: ${botAddress}`
         );
 
         const [{result: balance}, {result: maxRedeemable}] = await publicClient.multicall({
@@ -36,26 +37,18 @@ async function attemptRedeem() {
         const sharesToRedeem =
             balance < maxRedeemable ? balance : maxRedeemable;
 
-        if (sharesToRedeem) {
+        if (sharesToRedeem >= MIN_SHARES_TO_REDEEM) {
             console.log(
                 `\n🎯 Found ${sharesToRedeem.toString()} shares to redeem!`
             );
             console.log(`Attempting to redeem to recipient: ${SAFE_ADDRESS}`);
 
-            // const {request} = await publicClient.simulateContract({
-                //     address: VAULT,
-                //     abi: erc4626,
-                //     functionName: "redeem",
-                //     args: [sharesToRedeem, SAFE_ADDRESS, botAddress],
-                //     account: account.address,
-            // });
             // Call redeem function
             const redemptionHash = await walletClient.writeContract({
                 address: VAULT,
                 abi: erc4626,
                 functionName: "redeem",
-                args: [sharesToRedeem, SAFE_ADDRESS, botAddress],
-                account: account.address,
+                args: [sharesToRedeem, SAFE_ADDRESS, botAddress]
             });
 
             console.log(`✅ Transaction sent! Hash: ${redemptionHash}`);
@@ -72,7 +65,7 @@ async function attemptRedeem() {
                     `✅ Transaction confirmed! Block: ${redemptionReceipt.blockNumber}`
                 );
             } else {
-                console.log(`❌ Transaction failed!`);
+                console.error(`❌ Transaction failed!: ${redemptionReceipt.transactionHash}`);
             }
         } else {
             console.log("No shares available to redeem at this time.");
@@ -83,11 +76,11 @@ async function attemptRedeem() {
 }
 
 async function main() {
-    console.log("🚀 Auto-redeem rescue script starting...");
-    console.log(`Vault: ${VAULT}`);
-    console.log(`Recipient: ${SAFE_ADDRESS}`);
-    console.log(`Operator: ${account.address}`);
-    console.log(`Check interval: ${INTERVAL_MS}ms\n`);
+    console.info("🚀 Auto-redeem rescue script starting...");
+    console.info(`Vault: ${VAULT}`);
+    console.info(`Recipient: ${SAFE_ADDRESS}`);
+    console.info(`Operator: ${account.address}`);
+    console.info(`Check interval: ${INTERVAL_MS}ms\n`);
 
     // Run immediately
     await attemptRedeem();
